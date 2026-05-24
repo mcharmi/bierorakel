@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Das Bierschaum-Orakel</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  
+  body {
+    font-family: 'Georgia', serif;
+    background: radial-gradient(circle at center, #2a1810 0%, #0d0604 100%);
+    color: #f4e4b8;
+    min-height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+  
+  .container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Start Screen */
+  .start-screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px;
+    text-align: center;
+    z-index: 10;
+    transition: opacity 0.6s;
+  }
+  
+  .start-screen.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+  
+  .title {
+    font-size: 2.8em;
+    color: #d4af37;
+    text-shadow: 0 0 20px rgba(212, 175, 55, 0.5);
+    margin-bottom: 10px;
+    letter-spacing: 2px;
+  }
+  
+  .subtitle {
+    font-size: 1.1em;
+    color: #a89060;
+    margin-bottom: 50px;
+    font-style: italic;
+  }
+  
+  .beer-icon {
+    font-size: 6em;
+    margin-bottom: 30px;
+    animation: float 3s ease-in-out infinite;
+    filter: drop-shadow(0 0 30px rgba(255, 200, 50, 0.4));
+  }
+  
+  @keyframes float {
+    0%, 100% { transform: translateY(0) rotate(-2deg); }
+    50% { transform: translateY(-10px) rotate(2deg); }
+  }
+  
+  .start-btn {
+    background: linear-gradient(135deg, #d4af37 0%, #8b6914 100%);
+    color: #1a0e08;
+    border: none;
+    padding: 18px 40px;
+    font-size: 1.2em;
+    font-weight: bold;
+    border-radius: 50px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    box-shadow: 0 10px 30px rgba(212, 175, 55, 0.4);
+    font-family: inherit;
+    transition: transform 0.2s;
+  }
+  
+  .start-btn:active { transform: scale(0.95); }
+  
+  .hint {
+    margin-top: 25px;
+    font-size: 0.9em;
+    color: #806840;
+    max-width: 280px;
+  }
+  
+  /* Camera View */
+  .camera-view {
+    position: absolute;
+    inset: 0;
+    display: none;
+  }
+  
+  .camera-view.active { display: block; }
+  
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  canvas { display: none; }
+  
+  /* Targeting Circle */
+  .targeting {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 280px;
+    height: 280px;
+    border: 3px dashed #d4af37;
+    border-radius: 50%;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+    50% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; }
+  }
+  
+  .targeting.analyzing {
+    border-style: solid;
+    border-color: #ffd700;
+    animation: scan 1.5s linear infinite;
+  }
+  
+  @keyframes scan {
+    0% { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6), inset 0 -100% 0 -90% #ffd700; }
+    100% { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6), inset 0 100% 0 -90% #ffd700; }
+  }
+  
+  .camera-instruction {
+    position: absolute;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.7);
+    padding: 12px 24px;
+    border-radius: 30px;
+    color: #f4e4b8;
+    font-size: 0.95em;
+    text-align: center;
+    border: 1px solid rgba(212, 175, 55, 0.4);
+  }
+  
+  .capture-btn {
+    position: absolute;
+    bottom: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #d4af37 0%, #8b6914 100%);
+    border: 4px solid #f4e4b8;
+    cursor: pointer;
+    box-shadow: 0 0 30px rgba(212, 175, 55, 0.6);
+    transition: transform 0.2s;
+  }
+  
+  .capture-btn:active { transform: translateX(-50%) scale(0.9); }
+  
+  .capture-btn:disabled { opacity: 0.5; }
+  
+  /* Magic Reveal */
+  .reveal {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px;
+    text-align: center;
+    background: radial-gradient(circle at center, rgba(42, 24, 16, 0.95) 0%, rgba(13, 6, 4, 0.98) 100%);
+    z-index: 20;
+  }
+  
+  .reveal.active { display: flex; animation: fadeIn 0.8s; }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  .runes {
+    position: absolute;
+    font-size: 2em;
+    color: #d4af37;
+    opacity: 0;
+    pointer-events: none;
+  }
+  
+  .reveal-title {
+    font-size: 1.3em;
+    color: #a89060;
+    margin-bottom: 20px;
+    font-style: italic;
+    animation: slideDown 0.8s;
+  }
+  
+  @keyframes slideDown {
+    from { transform: translateY(-30px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  
+  .spruch {
+    font-size: 1.8em;
+    color: #ffd700;
+    line-height: 1.4;
+    max-width: 90%;
+    margin: 20px 0 40px;
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+    animation: zoomIn 1.2s 0.4s both;
+    font-weight: bold;
+  }
+  
+  @keyframes zoomIn {
+    from { transform: scale(0.5); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  
+  .again-btn {
+    background: transparent;
+    color: #d4af37;
+    border: 2px solid #d4af37;
+    padding: 14px 32px;
+    font-size: 1em;
+    border-radius: 50px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    font-family: inherit;
+    animation: fadeIn 1s 1.5s both;
+    transition: all 0.2s;
+  }
+  
+  .again-btn:active { background: #d4af37; color: #1a0e08; }
+  
+  /* Sparkles */
+  .sparkle {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: #ffd700;
+    border-radius: 50%;
+    pointer-events: none;
+    animation: sparkleAnim 1.5s ease-out forwards;
+  }
+  
+  @keyframes sparkleAnim {
+    0% { transform: scale(0) translate(0, 0); opacity: 1; }
+    100% { transform: scale(2) translate(var(--tx), var(--ty)); opacity: 0; }
+  }
+  
+  .error-msg {
+    position: absolute;
+    bottom: 150px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(180, 50, 50, 0.9);
+    padding: 12px 24px;
+    border-radius: 30px;
+    color: white;
+    font-size: 0.9em;
+    display: none;
+  }
+  
+  .error-msg.show { display: block; animation: fadeIn 0.3s; }
+</style>
+</head>
+<body>
+<div class="container">
+  
+  <!-- Start Screen -->
+  <div class="start-screen" id="startScreen">
+    <div class="beer-icon">🍺</div>
+    <div class="title">Bierschaum-Orakel</div>
+    <div class="subtitle">Die alte Kunst der Schaumdeutung</div>
+    <button class="start-btn" onclick="startCamera()">Orakel befragen</button>
+    <div class="hint">Halte dein Bierglas senkrecht und richte die Kamera von oben auf die Schaumkrone</div>
+  </div>
+  
+  <!-- Camera View -->
+  <div class="camera-view" id="cameraView">
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+    <div class="camera-instruction" id="instruction">Bierglas in den Kreis halten</div>
+    <div class="targeting" id="targeting"></div>
+    <button class="capture-btn" id="captureBtn" onclick="analyzeBeer()"></button>
+    <div class="error-msg" id="errorMsg"></div>
+  </div>
+  
+  <!-- Reveal -->
+  <div class="reveal" id="reveal">
+    <div class="reveal-title">✨ Das Orakel spricht ✨</div>
+    <div class="spruch" id="spruchText"></div>
+    <button class="again-btn" onclick="reset()">Noch ein Bier befragen 🍻</button>
+  </div>
+  
+</div>
+
+<script>
+const sprueche = [
+  // Klassiker
+  "Prost! Auf dass der Tag besser endet als er begann!",
+  "Zicke zacke, zicke zacke - hoi hoi hoi!",
+  "Ein Bier ist kein Bier, zwei Bier sind ein halbes Bier, drei Bier sind ein Bier!",
+  "Hopfen und Malz - Gott erhalt's!",
+  "Auf die Liebe, auf das Glück, auf den Augenblick zurück!",
+  "Trinken wir noch ein Tröpfchen, sonst tut uns morgen der Kopf weh!",
+  "Wer das Trinken will erfinden, muss das Saufen überwinden!",
+  
+  // Mallorca/Ballermann
+  "Eine geht noch, eine geht noch rein!",
+  "Hier am Strand von Mallorca - Prost mein Freund!",
+  "Es gibt kein Bier auf Hawaii, drum bleiben wir auf Malle!",
+  "Saufen, saufen, saufen - der Tag ist noch nicht rum!",
+  "Zehn nackte Friseusen und du - was willst du mehr? Trink aus!",
+  
+  // Philosophisch
+  "Bier ist der Beweis, dass das Leben uns liebt.",
+  "Im Schaum liegt die Wahrheit - im Bier die Erkenntnis.",
+  "Der Krug geht zur Quelle, bis er voll ist - dann trinken wir!",
+  "Wer Bier hat, hat Freunde. Wer Freunde hat, hat Bier.",
+  "Das Leben ist zu kurz für schlechtes Bier - PROST!",
+  
+  // Schlager-Style
+  "Heute Nacht ist alles möglich - cheers, mein Schatz!",
+  "Sieben Sünden, zehn Gebote - elf Bier und dann nach Hause!",
+  "Wir lassen die Sau raus - heute wird gefeiert!",
+  "Komm wir tanzen auf den Tischen - das Bier wird uns erfrischen!",
+  "Mallorca, du bist mein Zuhaus - heute trink ich alles aus!",
+  
+  // Frech
+  "Das Orakel sagt: Du brauchst noch eins.",
+  "Die Schaumkrone offenbart: Heute zahlt jemand anderes!",
+  "Tief im Schaum verborgen: Du wirst morgen früh aufstehen... und es bereuen.",
+  "Das Universum will, dass du noch eine Runde bestellst.",
+  "Im Schaum steht geschrieben: Sing laut, tanz schief, leb wild!",
+  "Die Götter haben gesprochen: Anstoßen ist Pflicht!",
+  
+  // Lebensweisheit
+  "Lieber einen Bierbauch vom guten Leben, als einen Sixpack vom Verzicht.",
+  "Heute ein König, morgen ein Kater - aber heute wird gefeiert!",
+  "Bier vor vier verleiht Manier - Bier nach acht macht Sachen, die man nicht gedacht!",
+  "Das Glas ist halb voll - und das ist die Lösung, nicht das Problem.",
+  
+  // Trinksprüche kurz
+  "Auf uns! 🍻",
+  "Möge dein Bier nie leer werden!",
+  "Auf das Leben - in vollen Zügen!",
+  "Hoch die Tassen!",
+  "Anstoßen, austrinken, weitermachen!"
+];
+
+let stream = null;
+let video = document.getElementById('video');
+let canvas = document.getElementById('canvas');
+
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 1280 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    document.getElementById('startScreen').classList.add('hidden');
+    document.getElementById('cameraView').classList.add('active');
+  } catch (err) {
+    alert('Kamera-Zugriff nicht möglich: ' + err.message + '\n\nBitte Kamera-Berechtigung erlauben.');
+  }
+}
+
+function analyzeBeer() {
+  const btn = document.getElementById('captureBtn');
+  const targeting = document.getElementById('targeting');
+  const instruction = document.getElementById('instruction');
+  
+  btn.disabled = true;
+  targeting.classList.add('analyzing');
+  instruction.textContent = '🔮 Lese die Schaumkrone...';
+  
+  // Capture frame for "analysis" (visual effect)
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  
+  // Check if image is bright enough (rough beer/glass detection)
+  const imageData = canvas.getContext('2d').getImageData(
+    canvas.width/2 - 100, canvas.height/2 - 100, 200, 200
+  );
+  let brightness = 0;
+  for (let i = 0; i < imageData.data.length; i += 4) {
+    brightness += (imageData.data[i] + imageData.data[i+1] + imageData.data[i+2]) / 3;
+  }
+  brightness /= (imageData.data.length / 4);
+  
+  // Sequence of analysis steps
+  setTimeout(() => instruction.textContent = '✨ Entschlüssele die Muster...', 800);
+  setTimeout(() => instruction.textContent = '🌟 Frage die alten Brauer...', 1800);
+  
+  setTimeout(() => {
+    if (brightness < 30) {
+      showError('Zu dunkel! Mehr Licht aufs Glas, bitte.');
+      btn.disabled = false;
+      targeting.classList.remove('analyzing');
+      instruction.textContent = 'Bierglas in den Kreis halten';
+      return;
+    }
+    revealSpruch();
+  }, 2800);
+}
+
+function showError(msg) {
+  const err = document.getElementById('errorMsg');
+  err.textContent = msg;
+  err.classList.add('show');
+  setTimeout(() => err.classList.remove('show'), 3000);
+}
+
+function revealSpruch() {
+  const spruch = sprueche[Math.floor(Math.random() * sprueche.length)];
+  document.getElementById('spruchText').textContent = spruch;
+  document.getElementById('reveal').classList.add('active');
+  
+  // Spawn sparkles
+  for (let i = 0; i < 30; i++) {
+    setTimeout(() => createSparkle(), i * 50);
+  }
+}
+
+function createSparkle() {
+  const sparkle = document.createElement('div');
+  sparkle.className = 'sparkle';
+  sparkle.style.left = Math.random() * 100 + '%';
+  sparkle.style.top = Math.random() * 100 + '%';
+  sparkle.style.setProperty('--tx', (Math.random() - 0.5) * 200 + 'px');
+  sparkle.style.setProperty('--ty', (Math.random() - 0.5) * 200 + 'px');
+  document.getElementById('reveal').appendChild(sparkle);
+  setTimeout(() => sparkle.remove(), 1500);
+}
+
+function reset() {
+  document.getElementById('reveal').classList.remove('active');
+  document.getElementById('captureBtn').disabled = false;
+  document.getElementById('targeting').classList.remove('analyzing');
+  document.getElementById('instruction').textContent = 'Bierglas in den Kreis halten';
+}
+</script>
+</body>
+</html>
